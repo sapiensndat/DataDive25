@@ -15,6 +15,7 @@ This challenge examines the relationship between legal gender gaps and women's e
 - Upasana Pattnaik
 - Justin Mezetin
 - Alanna Hazlett
+- Alyssa Wang
 
 
 ## Challenge Category Area
