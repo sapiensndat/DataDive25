@@ -1,0 +1,184 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: '3.12'
+
+      - name: Build site with Python
+        run: |
+          uv pip install markdown
+          uv run python <<'PY'
+          from pathlib import Path
+          import markdown
+
+          ROOT = Path.cwd()
+          DOCS_DIR = ROOT / "docs"
+          TEAM_SRC_DIR = ROOT / "Team_Projects"
+          TEAM_DST_BASE = DOCS_DIR / "Team_Projects"
+
+          DOCS_DIR.mkdir(exist_ok=True)
+          TEAM_DST_BASE.mkdir(parents=True, exist_ok=True)
+
+          index_src = ROOT / "index.html"
+          index_dst = DOCS_DIR / "index.html"
+          if index_src.exists():
+            index_dst.write_text(index_src.read_text(encoding="utf-8"), encoding="utf-8")
+          else:
+            index_dst.write_text("<!DOCTYPE html><html><body></body></html>", encoding="utf-8")
+
+          css_content = """
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+          }
+
+          h1, h2, h3 {
+            color: #2c3e50;
+          }
+
+          code {
+            background-color: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+          }
+
+          pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+          }
+
+          pre code {
+            background-color: transparent;
+            padding: 0;
+          }
+
+          blockquote {
+            border-left: 4px solid #ddd;
+            margin: 0;
+            padding-left: 16px;
+            color: #666;
+          }
+
+          table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+          }
+
+          th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+          }
+
+          th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+          }
+
+          a {
+            color: #007acc;
+            text-decoration: none;
+          }
+
+          a:hover {
+            text-decoration: underline;
+          }
+          """.strip()
+          (TEAM_DST_BASE / "style.css").write_text(css_content, encoding="utf-8")
+
+          def render_markdown(md_path: Path) -> str:
+            text = md_path.read_text(encoding="utf-8")
+            body_html = markdown.markdown(text, extensions=["fenced_code", "tables"])
+            title = f"{md_path.parent.name} - {md_path.stem}"
+            return f"""<!DOCTYPE html>
+          <html lang=\"en\">
+          <head>
+            <meta charset=\"utf-8\">
+            <title>{title}</title>
+            <link rel=\"stylesheet\" href=\"/Team_Projects/style.css\">
+          </head>
+          <body>
+            <h1>{title}</h1>
+            {body_html}
+          </body>
+          </html>
+          """
+
+          teams = []
+          if TEAM_SRC_DIR.exists():
+            for team_dir in sorted(TEAM_SRC_DIR.iterdir()):
+              if not team_dir.is_dir() or team_dir.name == "template":
+                continue
+
+              dest_dir = TEAM_DST_BASE / team_dir.name
+              dest_dir.mkdir(parents=True, exist_ok=True)
+
+              html_files = []
+              for md_file in sorted(team_dir.glob("*.md")):
+                output_file = dest_dir / f"{md_file.stem}.html"
+                output_file.write_text(render_markdown(md_file), encoding="utf-8")
+                html_files.append(output_file.name)
+
+              if html_files:
+                teams.append((team_dir.name, html_files))
+
+          def build_team_links(data):
+            if not data:
+              return ""
+
+            lines = ["\n<h2>Team Projects</h2>", "<ul>"]
+            for team_name, html_files in data:
+              lines.append(f"  <li><strong>{team_name}</strong>")
+              lines.append("    <ul>")
+              for html_file in html_files:
+                title = html_file.replace('.html', '')
+                lines.append(f"      <li><a href=\"/Team_Projects/{team_name}/{html_file}\">{title}</a></li>")
+              lines.append("    </ul>")
+              lines.append("  </li>")
+            lines.append("</ul>\n")
+            return "\n".join(lines)
+
+          team_links_html = build_team_links(teams)
+          if team_links_html:
+            current_index = index_dst.read_text(encoding="utf-8")
+            if "</body>" in current_index:
+              updated_index = current_index.replace("</body>", f"{team_links_html}\n</body>", 1)
+            else:
+              updated_index = current_index + team_links_html
+            index_dst.write_text(updated_index, encoding="utf-8")
+          PY
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './docs'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
