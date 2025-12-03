@@ -11,7 +11,7 @@ _site/
 *_files/
 
 # Converted notebooks (generated from Jupytext .py files)
-Team_Projects/**/*.qmd
+#Team_Projects/**/*.qmd
 
 # Python
 __pycache__/
