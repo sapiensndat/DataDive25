@@ -100,7 +100,7 @@ gitGraph
 
 ### Getting Started
 
-1. Fork this repository
+1. Clone or [Fork this repository](https://github.com/datacommunitydc/DataDive25/fork)
 2. Copy the `Team_Projects/template/` folder to create your team folder
 3. Add your markdown content
 4. Commit and push your changes
